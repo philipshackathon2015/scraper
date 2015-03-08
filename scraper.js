@@ -23,15 +23,9 @@ var counter = 0;
 var totalCount;
 var mongodb;
 var nextURL;
-MongoClient.connect(uristring, function(err, db) {
-	if(err) {
-		console.error("connect to mongodb failed",err);
-	} else {
-		console.log("connected to mongo!")
-		mongodb = db;	
-	}
-	
-});
+var username;
+var password;
+
 
 var token = function(username, password) { 
 	var authenticateString = 'Basic ' + (new Buffer(CLIENT_ID + ':' + CLIENT_SECRET)).toString('base64');
@@ -94,19 +88,21 @@ var patient = function() {
 
 var insertDocuments = function(db, objects, callback) {
   // Get the documents collection 
-  var collection = db.collection('filtered_observations');
+  var collection = db.collection(username);
   // Insert some documents 
   var observations = [];
   for(var x in objects) {
 
   	var ts = moment((objects[x].content.appliesDateTime)?objects[x].content.appliesDateTime:objects[x].content.appliesPeriod.start).add(6,"months").toDate();
 
-
+  	if(!objects[x].content || !objects[x].content.text || !objects[x].content.text.div) {
+  		continue;
+  	}
   	observations.push({
   		timestamp: ts,
   		period: objects[x].content.appliesPeriod,
   		unit: objects[x].content.name.coding[0].display,
-  		value: objects[x].content.valueQuantity.value,
+  		//value: objects[x].content.valueQuantity.value,
   		patient_id: objects[x].content.subject.reference,
   		text: objects[x].content.text.div
   	});
@@ -125,7 +121,7 @@ var insertDocuments = function(db, objects, callback) {
 
 var observations = function() {
 	request.get({
-		url: BASE_URL_OBSERVATION + "?name="+encodeURIComponent("https://rtmms.nist.gov|8454247,https://rtmms.nist.gov|8455148,https://rtmms.nist.gov|67108865") + '&subject:_id=' + patient_id+"&_count=50",
+		url: BASE_URL_OBSERVATION + '?subject:_id=' + patient_id+"&_count=50",
 		headers: {'Authorization':'Bearer ' + accessToken,'Accept':'application/json'},
 		json: true
 	},function(error, response, body) {
@@ -185,4 +181,21 @@ var logout = function() {
 };
 
 //token("sam.s.smith","MyFood4Health!");
-token("charlie.miller","1ce.Upon.a.Time");
+process.argv.forEach(function (val, index, array) {
+	if(index === 2) {
+		username = val;
+	}
+	if(index === 3) {
+		password = val;
+	}
+});
+MongoClient.connect(uristring, function(err, db) {
+	if(err) {
+		console.error("connect to mongodb failed",err);
+	} else {
+		console.log("connected to mongo!")
+		mongodb = db;
+		token(username,password);	
+	}
+	
+});
